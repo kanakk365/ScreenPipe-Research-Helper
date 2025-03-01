@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@radix-ui/react-label";
+import { cn } from "@/lib/utils";
 
 interface SummaryEntry {
   text: string;
@@ -15,6 +18,11 @@ export default function Home() {
   const [topic, setTopic] = useState("");
   const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
   const [summaryArr, setSummaryArr] = useState<SummaryEntry[]>([]);
+  const [sliderValue, setSliderValue] = useState<number[]>([50]);
+
+  const max = 10;
+  const skipInterval = 1;
+  const ticks = [...Array(max + 1)].map((_, i) => i);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -26,7 +34,7 @@ export default function Home() {
       // Set up interval for subsequent fetches (every minute)
       intervalId = setInterval(() => {
         fetchSummary();
-      }, 60000); // 60000 ms = 1 minute
+      }, sliderValue[0]); // 60000 ms = 1 minute
     }
 
     // Clean up the interval when the component unmounts or autoRefresh changes
@@ -40,7 +48,7 @@ export default function Home() {
     setSummary("");
     try {
       // Step 1: Query recent screen text
-      const res = await fetch("/api/summarize", { method: "POST" });
+      const res = await fetch("/api/summarize", { method: "POST", body:JSON.stringify({time: sliderValue}) });
       const data = await res.json();
 
       // Step 2: Send text to the summarization API route
@@ -104,7 +112,7 @@ export default function Home() {
           timestamp: new Date().toLocaleString(),
         };
         // Add the new summary at the beginning of the array
-        setSummaryArr(prev => [newEntry, ...prev]);
+        setSummaryArr((prev) => [newEntry, ...prev]);
       }
     } catch (error) {
       console.error("Error fetching summary:", error);
@@ -125,7 +133,7 @@ export default function Home() {
 
   return (
     <main className="p-4 max-w-2xl mx-auto space-y-4">
-      <h1 className="text-2xl font-bold">Research Summarizer</h1>
+      <h1 className="text-2xl font-bold">Research Assistant</h1>
       <Input
         onChange={(e) => handleInputChange(e)}
         placeholder="Enter the topic you want to study"
@@ -144,37 +152,76 @@ export default function Home() {
         </Button>
         {!autoRefresh && !loading && (
           <Button onClick={toggleAutoRefresh} variant="outline">
-            Enable Auto-Refresh (1 min)
+            Enable Auto-Refresh {sliderValue[0]} min
           </Button>
         )}
+        <div className="space-y-4 min-w-[300px]">
+          <Label>Pick the the summary interval (min) </Label>
+          <div>
+            <Slider
+            onValueChange={(newValue)=>{
+              setSliderValue(newValue)
+              console.log(sliderValue)
+            }}
+              defaultValue={[5]}
+              max={max}
+              aria-label="Slider with ticks"
+            />
+            <span
+              className="mt-3 flex w-full items-center justify-between gap-1 px-2.5 text-xs font-medium text-muted-foreground"
+              aria-hidden="true"
+            >
+              {ticks.map((_, i) => (
+                <span
+                  key={i}
+                  className="flex w-0 flex-col items-center justify-center gap-2"
+                >
+                  <span
+                    className={cn(
+                      "h-1 w-px bg-muted-foreground/70",
+                      i % skipInterval !== 0 && "h-0.5"
+                    )}
+                  />
+                  <span className={cn(i % skipInterval !== 0 && "opacity-0")}>
+                    {i}
+                  </span>
+                </span>
+              ))}
+            </span>
+          </div>
+        </div>
       </div>
       {autoRefresh && !loading && (
         <div className="text-sm text-green-600 animate-pulse">
           Auto-refreshing every minute. Next update in less than 60 seconds.
         </div>
       )}
-      
+
       {loading && (
         <div className="border p-4 rounded bg-gray-50">
           <h2 className="font-semibold mb-2">Processing...</h2>
           <p>{summary}</p>
         </div>
       )}
-      
+
       <div className="space-y-4">
         <h2 className="font-bold text-xl mt-4">Summary History</h2>
         {summaryArr.length > 0 ? (
           summaryArr.map((entry, index) => (
             <div key={index} className="border p-4 rounded shadow-sm">
               <div className="flex justify-between items-center mb-2">
-                <h3 className="font-medium">Summary #{summaryArr.length - index}</h3>
+                <h3 className="font-medium">
+                  Summary #{summaryArr.length - index}
+                </h3>
                 <span className="text-sm text-gray-500">{entry.timestamp}</span>
               </div>
               <p className="whitespace-pre-wrap">{entry.text}</p>
             </div>
           ))
         ) : (
-          <p className="text-gray-500">No summaries yet. Click &quot;Start Summary&quot; to begin.</p>
+          <p className="text-gray-500">
+            No summaries yet. Click &quot;Start Summary&quot; to begin.
+          </p>
         )}
       </div>
     </main>

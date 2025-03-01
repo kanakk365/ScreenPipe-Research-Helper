@@ -1,16 +1,18 @@
 import { pipe , OCRContent } from "@screenpipe/js";
 import { NextResponse } from "next/server";
 
+
 export async function POST(request: Request) {
   try {
-    const oneMinutesAgo = new Date(Date.now() - 1 * 60 * 1000).toISOString();
-
+    const {time} = await request.json()
+    const timeVal = time[0]
+    const oneMinutesAgo = new Date(Date.now() - timeVal * 60 * 1000).toISOString();
     const results = await pipe.queryScreenpipe({
       startTime: oneMinutesAgo,
       limit: 10,
       contentType: "all",
     });
-
+ console.log(timeVal)
     console.log(results?.data.map((d) => d.content));
 
     // Ensure results.data exists and is an array
