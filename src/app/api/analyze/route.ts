@@ -29,8 +29,8 @@ const chunkText: IChunkTextFunction = (text: string, maxLength: number): string[
     return chunks;
 }
 
-async function summarizeChunk(chunk: string): Promise<string> {
-    const prompt = `Summarize the following research content:\n\n${chunk}`;
+async function summarizeChunk(chunk: string , topic:string): Promise<string> {
+    const prompt = `The Study topic is ${topic} Summarize the following research content:\n\n${chunk}`;
     const response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
@@ -43,11 +43,11 @@ async function summarizeChunk(chunk: string): Promise<string> {
 
 export async function POST(request: Request) {
   try {
-    const { text } = await request.json();
+    const { text , topic } = await request.json();
 
     const chunks = chunkText(text , 3000)
 
-    const summaryPromises = chunks.map((chunk:string)=>summarizeChunk(chunk))
+    const summaryPromises = chunks.map((chunk:string)=>summarizeChunk(chunk , topic))
     const chunkSummaries= await Promise.all(summaryPromises)
     
     const finalSummaryPrompt = `Summarize these individual summaries into one concise summary:\n\n${chunkSummaries.join(
