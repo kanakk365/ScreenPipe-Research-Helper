@@ -32,7 +32,7 @@ export async function POST(request: Request) {
           content: `Topic: ${topic}\n\nSummary: ${text.substring(0, 1000)}`
         }
       ]
-      // Removed the response_format parameter as it's causing the error
+ 
     });
 
     const content = response.choices[0].message.content;
@@ -41,16 +41,13 @@ export async function POST(request: Request) {
     }
 
     try {
-      // Try to extract JSON if it's wrapped in code blocks or other text
       let jsonContent = content;
       
-      // Look for JSON content between ```json and ``` markers
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (jsonMatch && jsonMatch[1]) {
         jsonContent = jsonMatch[1];
       }
       
-      // Remove any non-JSON text before or after the actual JSON object
       jsonContent = jsonContent.trim();
       if (jsonContent.indexOf('{') > 0) {
         jsonContent = jsonContent.substring(jsonContent.indexOf('{'));
@@ -64,7 +61,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ tags });
     } catch (parseError) {
       console.error("Error parsing tags JSON:", parseError);
-      // If parsing fails, do a basic tag extraction as fallback
       const tagMatches = content.match(/"([^"]+)"/g) || [];
       const fallbackTags = tagMatches.map(t => t.replace(/"/g, ''));
       return NextResponse.json({ tags: fallbackTags.slice(0, 5) });

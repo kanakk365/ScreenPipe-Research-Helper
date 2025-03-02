@@ -21,6 +21,14 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import ResearchActivity from "@/components/ResearchActivity";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface SummaryEntry {
   text: string;
@@ -44,6 +52,9 @@ export default function Home() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [extractedEntities, setExtractedEntities] = useState<{[key: string]: number}>({});
   const summaryIdCounter = useRef(0);
+  const [fullSummary, setFullSummary] = useState<string>("");
+  const [fullSummaryLoading, setFullSummaryLoading] = useState<boolean>(false);
+  const [fullSummaryDialogOpen, setFullSummaryDialogOpen] = useState<boolean>(false);
 
   const max = 10;
   const ticks = [...Array(max + 1)].map((_, i) => i);
@@ -54,15 +65,14 @@ export default function Home() {
       fetchSummary();
       intervalId = setInterval(() => {
         fetchSummary();
-      }, sliderValue[0] * 60000); // convert minutes to milliseconds
+      }, sliderValue[0] * 60000);
     }
 
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [autoRefresh, sliderValue]);
+  }, [autoRefresh, sliderValue ]);
 
-  // Filter summaries based on search term and selected tags
   useEffect(() => {
     let filtered = [...summaryArr];
     
@@ -83,7 +93,6 @@ export default function Home() {
     setFilteredSummaries(filtered);
   }, [summaryArr, searchTerm, selectedTags]);
 
-  // Extract entities (concepts, people, etc.) from summaries
   useEffect(() => {
     if (summaryArr.length > 0) {
       const extractEntities = async () => {
@@ -111,7 +120,6 @@ export default function Home() {
     setLoading(true);
     setSummary("");
     try {
-      // Step 1: Query recent screen activity text
       const res = await fetch("/api/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -119,10 +127,8 @@ export default function Home() {
       });
       const data = await res.json();
 
-      // Get previous 3 summaries for context
       const recentSummaries = summaryArr.slice(0, 3);
 
-      // Step 2: Send text to the summarization API route with previous context
       const analyzeRes = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -175,7 +181,6 @@ export default function Home() {
       }
 
       if (finalResult) {
-        // Auto-generate tags based on content
         const tagsRes = await fetch("/api/generate-tags", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -237,6 +242,93 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
+  const generateFullSummary = async () => {
+    if (summaryArr.length < 2) {
+      alert("You need at least 2 summaries to generate a comprehensive report.");
+      return;
+    }
+    
+    setFullSummaryLoading(true);
+    setFullSummary("");
+    setFullSummaryDialogOpen(true);
+    
+    try {
+      const analyzeRes = await fetch("/api/generate-full-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          allSummaries: summaryArr
+        }),
+      });
+
+      if (!analyzeRes.body) {
+        throw new Error("No response body received");
+      }
+
+      const reader = analyzeRes.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let finalResult = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const parsed = JSON.parse(line);
+            const chunkContent = parsed.choices?.[0]?.delta?.content || "";
+            finalResult += chunkContent;
+            setFullSummary(finalResult);
+          } catch (error) {
+            console.log(error)
+            finalResult += line + "\n";
+            setFullSummary(finalResult);
+          }
+        }
+      }
+
+      try {
+        if (buffer.trim()) {
+          try {
+            const parsed = JSON.parse(buffer);
+            const chunkContent = parsed.choices?.[0]?.delta?.content || "";
+            finalResult += chunkContent;
+          } catch (error) {
+            console.log(error)
+            finalResult += buffer;
+          }
+          setFullSummary(finalResult);
+        }
+      } catch (error) {
+        console.error("Error parsing final buffer:", error);
+      }
+    } catch (error) {
+      console.error("Error generating full summary:", error);
+      setFullSummary("Sorry, we encountered an issue generating your comprehensive summary.");
+    } finally {
+      setFullSummaryLoading(false);
+    }
+  };
+
+  const exportFullSummary = () => {
+    if (!fullSummary) return;
+    
+    const content = `# Comprehensive Research Summary\n\n${fullSummary}`;
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `comprehensive-research-summary-${new Date().toISOString().split('T')[0]}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <main className="p-8 max-w-4xl mx-auto space-y-6 bg-white shadow-md rounded-lg">
       <header className="text-center">
@@ -246,7 +338,6 @@ export default function Home() {
         </p>
       </header>
 
-      {/* Control panel */}
       <section className="space-y-4">
         <Input
           onChange={handleInputChange}
@@ -300,7 +391,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Main tabs interface */}
       <Tabs defaultValue="summaries" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid grid-cols-3 mb-4">
           <TabsTrigger value="summaries">Summaries</TabsTrigger>
@@ -308,17 +398,33 @@ export default function Home() {
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
         </TabsList>
         
-        {/* Summaries tab */}
         <TabsContent value="summaries" className="space-y-4">
-          <div className="flex gap-2 mb-4">
-            <Input 
-              placeholder="Search summaries..." 
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1"
-            />
+          <div className="flex justify-between items-center gap-4 flex-wrap">
+            <div className="flex-1">
+              <Input 
+                placeholder="Search summaries..." 
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            
+            {summaryArr.length >= 2 && (
+              <Button
+                onClick={generateFullSummary}
+                disabled={fullSummaryLoading}
+                variant="outline"
+                size="sm"
+                className="whitespace-nowrap"
+              >
+                {fullSummaryLoading ? (
+                  <>Generating<span className="animate-pulse">...</span></>
+                ) : (
+                  <>Generate Complete Report</>
+                )}
+              </Button>
+            )}
           </div>
           
-          {/* Tag filters */}
           <div className="flex flex-wrap gap-2 mb-4">
             {Array.from(new Set(summaryArr.flatMap(s => s.tags || []))).map(tag => (
               <Badge 
@@ -338,7 +444,18 @@ export default function Home() {
             ))}
           </div>
           
-          {/* Summary list */}
+          {summaryArr.length >= 2 && (
+            <div className="bg-gray-50 p-3 rounded-md mb-2 text-sm">
+              <p className="text-gray-600">
+                You have <span className="font-medium">{summaryArr.length}</span> research summaries across{" "}
+                <span className="font-medium">{new Set(summaryArr.map(s => s.topic)).size}</span> topics.
+                <span className="ml-1 text-blue-600 hover:underline cursor-pointer" onClick={generateFullSummary}>
+                  Generate a comprehensive report
+                </span>
+              </p>
+            </div>
+          )}
+          
           {(searchTerm || selectedTags.length > 0 ? filteredSummaries : summaryArr).map((entry) => (
             <Card key={entry.id} className="mb-4">
               <CardHeader className="pb-2">
@@ -368,7 +485,6 @@ export default function Home() {
             </Card>
           ))}
           
-          {/* Empty state */}
           {summaryArr.length === 0 && (
             <div className="text-center py-12 text-gray-500">
               <p>Start generating summaries to see your research insights here.</p>
@@ -376,7 +492,6 @@ export default function Home() {
           )}
         </TabsContent>
         
-        {/* Insights tab */}
         <TabsContent value="insights">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
@@ -408,7 +523,6 @@ export default function Home() {
               </CardContent>
             </Card>
             
-            {/* Additional insight component */}
             {summaryArr.length > 2 && (
               <Card className="md:col-span-2">
                 <CardHeader>
@@ -441,10 +555,39 @@ export default function Home() {
                 </CardContent>
               </Card>
             )}
+
+            <Card className="md:col-span-2 mb-4">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Research Synthesis</span>
+                  <Button 
+                    onClick={generateFullSummary}
+                    disabled={summaryArr.length < 2 || fullSummaryLoading}
+                    variant="outline"
+                    size="sm"
+                    className="ml-4"
+                  >
+                    {fullSummaryLoading ? (
+                      <>Generating Summary<span className="animate-pulse">...</span></>
+                    ) : (
+                      <>Generate Complete Research Report</>
+                    )}
+                  </Button>
+                </CardTitle>
+                <CardDescription>
+                  Generate a comprehensive synthesis of all your research insights
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600">
+                  This feature analyzes all your {summaryArr.length} summaries across {new Set(summaryArr.map(s => s.topic)).size} topics to create a comprehensive report. 
+                  Perfect for creating final research documentation.
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
         
-        {/* Timeline tab */}
         <TabsContent value="timeline">
           <div className="space-y-4">
             <div className="border-l-2 border-gray-200 ml-4 pl-8 space-y-8">
@@ -468,6 +611,50 @@ export default function Home() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={fullSummaryDialogOpen} onOpenChange={setFullSummaryDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Comprehensive Research Summary</DialogTitle>
+            <DialogDescription>
+              A synthesis of all your research insights across {new Set(summaryArr.map(s => s.topic)).size} topics
+            </DialogDescription>
+          </DialogHeader>
+          
+          {fullSummaryLoading ? (
+            <div className="p-8 text-center">
+              <div className="animate-pulse mb-4">Generating comprehensive research synthesis...</div>
+              <div className="h-3 bg-gray-200 rounded-full w-3/4 mx-auto mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded-full w-full mx-auto mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded-full w-2/3 mx-auto mb-2"></div>
+            </div>
+          ) : (
+            <div className="prose prose-blue max-w-none">
+              <div className="whitespace-pre-wrap" 
+                dangerouslySetInnerHTML={{ 
+                  __html: fullSummary
+                    .replace(/\n\n/g, '<br/><br/>') 
+                    .replace(/\n/g, '<br/>') 
+                    .replace(/#{2,6} (.*?)(<br\/>|$)/g, (match, heading) => 
+                      `<strong class="text-lg font-bold block mt-4 mb-2">${heading}</strong>`) 
+                }} 
+              />
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFullSummaryDialogOpen(false)}>
+              Close
+            </Button>
+            <Button 
+              onClick={exportFullSummary}
+              disabled={!fullSummary || fullSummaryLoading}
+            >
+              Export as Markdown
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
