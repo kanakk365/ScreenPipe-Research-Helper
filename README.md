@@ -2,9 +2,14 @@
 
 An AI-powered application that transforms your screen activity into structured research insights. Research Assistant continuously analyzes what you're reading and working on, generating comprehensive summaries and knowledge connections to enhance your research workflow.
 
-![Research Assistant Screenshot](https://github.com/user-attachments/assets/4ff9dc5e-042b-4eea-9bf4-84697e907163)
+![Research Assistant Screenshot](https://github.com/user-attachments/assets/9f022247-e8f9-4394-95fa-2ab17626de26)
 
 ## Features
+![Research Assistant Insights](https://github.com/user-attachments/assets/c04a522a-2a00-42da-b87f-37c8b7caa58a)
+
+
+
+![Screenshot 2025-03-02 163318](https://github.com/user-attachments/assets/7b308717-cc60-4525-b8a8-f5814535f581)
 
 - **Automated Screen Analysis**: Captures and summarizes text from your screen activity
 - **Topic-Based Organization**: Group research by customizable topics
@@ -50,11 +55,9 @@ The application uses a hybrid approach to optimize OpenAI API costs:
 - Final synthesis: GPT-4 (for higher quality output)
 - This balance provides high-quality results while minimizing API expenses
 
-## Screenshots
+## Demo
 
-![Research Assistant Insights](https://github.com/user-attachments/assets/188700fa-e1b6-4018-b028-11cd55ad40af)
 
-![Research Assistant Demo](https://github.com/user-attachments/assets/e4c115d9-51cf-4870-aec4-4df4743d2d02)
 
 ## Requirements
 
