@@ -57,6 +57,7 @@ The application uses a hybrid approach to optimize OpenAI API costs:
 
 ## Demo
 
+https://github.com/user-attachments/assets/fe2acbb1-ee13-458b-a049-b21131c29e00
 
 
 ## Requirements
